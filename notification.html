@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>通知</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+    }
+
+    .notification-container {
+      text-align: center;
+      padding: 60px;
+      animation: fadeIn 0.5s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: scale(0.9);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .icon {
+      font-size: 120px;
+      margin-bottom: 40px;
+      animation: bounce 1s ease-in-out infinite;
+    }
+
+    @keyframes bounce {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-20px);
+      }
+    }
+
+    .datetime {
+      font-size: 36px;
+      font-weight: 300;
+      margin-bottom: 30px;
+      opacity: 0.9;
+    }
+
+    .message {
+      font-size: 48px;
+      font-weight: 600;
+      line-height: 1.4;
+      margin-bottom: 60px;
+      max-width: 1200px;
+      word-wrap: break-word;
+    }
+
+    .close-button {
+      padding: 20px 50px;
+      font-size: 24px;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.2);
+      border: 3px solid white;
+      border-radius: 50px;
+      color: white;
+      cursor: pointer;
+      transition: all 0.3s;
+      backdrop-filter: blur(10px);
+    }
+
+    .close-button:hover {
+      background: white;
+      color: #667eea;
+      transform: scale(1.05);
+    }
+
+    .countdown {
+      margin-top: 30px;
+      font-size: 18px;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="notification-container">
+    <div class="icon">🔔</div>
+    <div class="datetime" id="datetime"></div>
+    <div class="message" id="message"></div>
+    <button class="close-button" onclick="closeNotification()">閉じる</button>
+    <div class="countdown" id="countdown"></div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    let autoCloseSeconds = 60;
+    let countdownInterval;
+
+    // 通知データの受信
+    ipcRenderer.on('show-notification', (event, schedule) => {
+      // 日時を表示
+      const date = new Date(schedule.datetime);
+      document.getElementById('datetime').textContent = date.toLocaleString('ja-JP', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      // メッセージを表示
+      document.getElementById('message').textContent = schedule.message;
+
+      // カウントダウンを開始
+      startCountdown();
+    });
+
+    // カウントダウンの開始
+    function startCountdown() {
+      updateCountdown();
+      countdownInterval = setInterval(() => {
+        autoCloseSeconds--;
+        if (autoCloseSeconds <= 0) {
+          closeNotification();
+        } else {
+          updateCountdown();
+        }
+      }, 1000);
+    }
+
+    // カウントダウン表示の更新
+    function updateCountdown() {
+      document.getElementById('countdown').textContent =
+        `${autoCloseSeconds}秒後に自動的に閉じます`;
+    }
+
+    // 通知を閉じる
+    function closeNotification() {
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+      }
+      ipcRenderer.send('close-notification');
+    }
+
+    // ESCキーで閉じる
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeNotification();
+      }
+    });
+
+    // クリックで閉じる（ボタン以外）
+    document.body.addEventListener('click', (e) => {
+      if (!e.target.classList.contains('close-button')) {
+        closeNotification();
+      }
+    });
+  </script>
+</body>
+</html>

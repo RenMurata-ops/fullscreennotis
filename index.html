@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>フルスクリーン通知スケジューラー</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .form-section {
+      padding: 30px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .form-section h2 {
+      font-size: 20px;
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #555;
+      font-weight: 600;
+    }
+
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .form-group textarea {
+      min-height: 100px;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .btn {
+      padding: 12px 30px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-danger {
+      background: #e74c3c;
+      color: white;
+      padding: 8px 16px;
+      font-size: 14px;
+    }
+
+    .btn-danger:hover {
+      background: #c0392b;
+    }
+
+    .schedules-section {
+      padding: 30px;
+    }
+
+    .schedules-section h2 {
+      font-size: 20px;
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    .schedule-list {
+      list-style: none;
+    }
+
+    .schedule-item {
+      background: #f8f9fa;
+      padding: 15px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.3s;
+    }
+
+    .schedule-item:hover {
+      background: #e9ecef;
+      transform: translateX(5px);
+    }
+
+    .schedule-info {
+      flex: 1;
+    }
+
+    .schedule-datetime {
+      font-weight: 600;
+      color: #667eea;
+      margin-bottom: 5px;
+    }
+
+    .schedule-message {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+    }
+
+    .empty-state svg {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 20px;
+      opacity: 0.3;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>フルスクリーン通知スケジューラー</h1>
+      <p>指定した日時にフルスクリーンで通知を表示します</p>
+    </div>
+
+    <div class="form-section">
+      <h2>新しい通知を追加</h2>
+      <form id="scheduleForm">
+        <div class="form-group">
+          <label for="datetime">日時</label>
+          <input type="datetime-local" id="datetime" required>
+        </div>
+        <div class="form-group">
+          <label for="message">メッセージ</label>
+          <textarea id="message" placeholder="表示するメッセージを入力してください" required></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">スケジュールを追加</button>
+      </form>
+    </div>
+
+    <div class="schedules-section">
+      <h2>予定されている通知</h2>
+      <ul id="scheduleList" class="schedule-list"></ul>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    // 初期読み込み
+    ipcRenderer.send('get-schedules');
+
+    // スケジュールデータの受信
+    ipcRenderer.on('schedules-data', (event, schedules) => {
+      renderSchedules(schedules);
+    });
+
+    // フォーム送信
+    document.getElementById('scheduleForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const datetime = document.getElementById('datetime').value;
+      const message = document.getElementById('message').value;
+
+      if (datetime && message) {
+        ipcRenderer.send('add-schedule', {
+          datetime: new Date(datetime).toISOString(),
+          message: message
+        });
+
+        // フォームをリセット
+        document.getElementById('datetime').value = '';
+        document.getElementById('message').value = '';
+      }
+    });
+
+    // スケジュール一覧の表示
+    function renderSchedules(schedules) {
+      const listElement = document.getElementById('scheduleList');
+
+      if (schedules.length === 0) {
+        listElement.innerHTML = `
+          <div class="empty-state">
+            <svg fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
+            </svg>
+            <p>予定されている通知はありません</p>
+          </div>
+        `;
+        return;
+      }
+
+      listElement.innerHTML = schedules
+        .sort((a, b) => new Date(a.datetime) - new Date(b.datetime))
+        .map(schedule => {
+          const date = new Date(schedule.datetime);
+          const formattedDate = date.toLocaleString('ja-JP', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+
+          return `
+            <li class="schedule-item">
+              <div class="schedule-info">
+                <div class="schedule-datetime">${formattedDate}</div>
+                <div class="schedule-message">${escapeHtml(schedule.message)}</div>
+              </div>
+              <button class="btn btn-danger" onclick="deleteSchedule(${schedule.id})">削除</button>
+            </li>
+          `;
+        })
+        .join('');
+    }
+
+    // スケジュールの削除
+    function deleteSchedule(scheduleId) {
+      if (confirm('このスケジュールを削除しますか？')) {
+        ipcRenderer.send('delete-schedule', scheduleId);
+      }
+    }
+
+    // HTMLエスケープ
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
