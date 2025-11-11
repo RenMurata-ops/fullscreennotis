@@ -72,6 +72,12 @@
       word-wrap: break-word;
     }
 
+    .buttons {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+    }
+
     .close-button {
       padding: 20px 50px;
       font-size: 24px;
@@ -91,10 +97,36 @@
       transform: scale(1.05);
     }
 
+    .fullscreen-button {
+      padding: 20px 50px;
+      font-size: 24px;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.9);
+      border: 3px solid white;
+      border-radius: 50px;
+      color: #667eea;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .fullscreen-button:hover {
+      background: white;
+      transform: scale(1.05);
+    }
+
     .countdown {
       margin-top: 30px;
       font-size: 18px;
       opacity: 0.7;
+    }
+
+    .fullscreen-hint {
+      margin-top: 20px;
+      font-size: 16px;
+      opacity: 0.8;
+      padding: 10px 20px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
     }
   </style>
 </head>
@@ -103,34 +135,76 @@
     <div class="icon">🔔</div>
     <div class="datetime" id="datetime"></div>
     <div class="message" id="message"></div>
-    <button class="close-button" onclick="closeNotification()">閉じる</button>
+    <div class="buttons">
+      <button class="fullscreen-button" id="fullscreenBtn">フルスクリーンで表示</button>
+      <button class="close-button" id="closeBtn">閉じる</button>
+    </div>
+    <div class="fullscreen-hint" id="hint">
+      フルスクリーンで表示することをおすすめします
+    </div>
     <div class="countdown" id="countdown"></div>
   </div>
 
   <script>
-    const { ipcRenderer } = require('electron');
-
     let autoCloseSeconds = 60;
     let countdownInterval;
+    let isFullscreen = false;
 
-    // 通知データの受信
-    ipcRenderer.on('show-notification', (event, schedule) => {
-      // 日時を表示
-      const date = new Date(schedule.datetime);
-      document.getElementById('datetime').textContent = date.toLocaleString('ja-JP', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+    // 通知データを読み込んで表示
+    function loadNotification() {
+      const scheduleData = sessionStorage.getItem('currentNotification');
 
-      // メッセージを表示
-      document.getElementById('message').textContent = schedule.message;
+      if (!scheduleData) {
+        // データがない場合はホームに戻る
+        window.location.href = 'index.html';
+        return;
+      }
 
-      // カウントダウンを開始
-      startCountdown();
-    });
+      try {
+        const schedule = JSON.parse(scheduleData);
+
+        // 日時を表示
+        const date = new Date(schedule.datetime);
+        document.getElementById('datetime').textContent = date.toLocaleString('ja-JP', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        // メッセージを表示
+        document.getElementById('message').textContent = schedule.message;
+
+        // sessionStorageから削除（一度きり）
+        sessionStorage.removeItem('currentNotification');
+
+        // カウントダウンを開始
+        startCountdown();
+      } catch (error) {
+        console.error('通知データの読み込みエラー:', error);
+        window.location.href = 'index.html';
+      }
+    }
+
+    // フルスクリーン切り替え
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().then(() => {
+          isFullscreen = true;
+          document.getElementById('fullscreenBtn').textContent = 'フルスクリーン解除';
+          document.getElementById('hint').style.display = 'none';
+        }).catch(err => {
+          console.error('フルスクリーンエラー:', err);
+          alert('フルスクリーン表示に失敗しました。ブラウザの設定をご確認ください。');
+        });
+      } else {
+        document.exitFullscreen();
+        isFullscreen = false;
+        document.getElementById('fullscreenBtn').textContent = 'フルスクリーンで表示';
+        document.getElementById('hint').style.display = 'block';
+      }
+    }
 
     // カウントダウンの開始
     function startCountdown() {
@@ -156,22 +230,38 @@
       if (countdownInterval) {
         clearInterval(countdownInterval);
       }
-      ipcRenderer.send('close-notification');
+
+      // フルスクリーンを解除
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      }
+
+      // ホームに戻る
+      window.location.href = 'index.html';
     }
 
-    // ESCキーで閉じる
+    // イベントリスナー
+    document.getElementById('fullscreenBtn').addEventListener('click', toggleFullscreen);
+    document.getElementById('closeBtn').addEventListener('click', closeNotification);
+
+    // ESCキーで閉じる（フルスクリーンでない場合のみ）
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !document.fullscreenElement) {
         closeNotification();
       }
     });
 
-    // クリックで閉じる（ボタン以外）
-    document.body.addEventListener('click', (e) => {
-      if (!e.target.classList.contains('close-button')) {
-        closeNotification();
+    // フルスクリーン状態の変化を検知
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) {
+        isFullscreen = false;
+        document.getElementById('fullscreenBtn').textContent = 'フルスクリーンで表示';
+        document.getElementById('hint').style.display = 'block';
       }
     });
+
+    // ページ読み込み時に通知を表示
+    document.addEventListener('DOMContentLoaded', loadNotification);
   </script>
 </body>
 </html>

@@ -1,16 +1,12 @@
 {
   "name": "fullscreen-notification-tool",
-  "version": "1.0.0",
-  "description": "スケジュールされた日時にフルスクリーン通知を表示するツール",
-  "main": "main.js",
+  "version": "2.0.0",
+  "description": "スケジュールされた日時にフルスクリーン通知を表示するWebアプリケーション",
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --dev"
+    "start": "python3 -m http.server 8000",
+    "serve": "python3 -m http.server 8000"
   },
-  "keywords": ["notification", "scheduler", "fullscreen", "electron"],
+  "keywords": ["notification", "scheduler", "fullscreen", "web-app"],
   "author": "",
-  "license": "MIT",
-  "dependencies": {
-    "electron": "^28.0.0"
-  }
+  "license": "MIT"
 }
