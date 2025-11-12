@@ -206,6 +206,20 @@
       animation: pulse 2s infinite;
     }
 
+    .status-inactive {
+      background: #e74c3c;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .status-row:first-child {
+      margin-top: 10px;
+    }
+
     @keyframes pulse {
       0%, 100% {
         opacity: 1;
@@ -224,12 +238,16 @@
     </div>
 
     <div class="info-banner">
-      <strong>📌 重要な注意事項</strong>
-      このページを開いたままにしておくと、スケジュールした時刻に自動的に通知が表示されます。
-      ページを閉じると通知は表示されません。
-      <div style="margin-top: 10px;">
-        <span class="status-indicator status-active"></span>
-        <span>監視中（10秒ごとにチェック）</span>
+      <strong>📌 バックグラウンド通知機能</strong>
+      ブラウザは開いている必要がありますが、このタブを閉じていても通知が表示されます。
+      初回アクセス時に通知権限の許可をお願いします。
+      <div class="status-row">
+        <span id="swStatus" class="status-indicator"></span>
+        <span id="swStatusText">バックグラウンド動作: 確認中...</span>
+      </div>
+      <div class="status-row">
+        <span id="notifStatus" class="status-indicator"></span>
+        <span id="notifStatusText">通知権限: 確認中...</span>
       </div>
     </div>
 

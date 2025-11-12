@@ -3,14 +3,166 @@ class ScheduleManager {
   constructor() {
     this.storageKey = 'fullscreen-schedules';
     this.checkInterval = null;
+    this.serviceWorkerRegistration = null;
     this.init();
   }
 
-  init() {
+  async init() {
+    // Service Workerの登録
+    await this.registerServiceWorker();
+
+    // 通知権限のリクエスト
+    await this.requestNotificationPermission();
+
+    // Service Workerからのメッセージを受信
+    this.setupServiceWorkerListener();
+
     this.loadSchedules();
     this.startChecking();
     this.setupEventListeners();
     this.renderSchedules();
+  }
+
+  // Service Workerの登録
+  async registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+      try {
+        this.serviceWorkerRegistration = await navigator.serviceWorker.register('/service-worker.js');
+        console.log('Service Worker登録成功:', this.serviceWorkerRegistration);
+
+        // Service Workerのステータスを表示
+        this.updateServiceWorkerStatus(true);
+      } catch (error) {
+        console.error('Service Worker登録失敗:', error);
+        this.updateServiceWorkerStatus(false);
+      }
+    } else {
+      console.log('Service Workerはこのブラウザでサポートされていません');
+      this.updateServiceWorkerStatus(false);
+    }
+  }
+
+  // 通知権限のリクエスト
+  async requestNotificationPermission() {
+    if ('Notification' in window) {
+      try {
+        const permission = await Notification.requestPermission();
+        console.log('通知権限:', permission);
+        this.updateNotificationStatus(permission);
+        return permission === 'granted';
+      } catch (error) {
+        console.error('通知権限リクエストエラー:', error);
+        return false;
+      }
+    } else {
+      console.log('通知機能はこのブラウザでサポートされていません');
+      return false;
+    }
+  }
+
+  // Service Workerステータスの更新
+  updateServiceWorkerStatus(active) {
+    const statusElement = document.getElementById('swStatus');
+    if (statusElement) {
+      statusElement.className = `status-indicator ${active ? 'status-active' : 'status-inactive'}`;
+      const textElement = document.getElementById('swStatusText');
+      if (textElement) {
+        textElement.textContent = active ? 'バックグラウンド動作: 有効' : 'バックグラウンド動作: 無効';
+      }
+    }
+  }
+
+  // 通知権限ステータスの更新
+  updateNotificationStatus(permission) {
+    const statusElement = document.getElementById('notifStatus');
+    if (statusElement) {
+      const isGranted = permission === 'granted';
+      statusElement.className = `status-indicator ${isGranted ? 'status-active' : 'status-inactive'}`;
+      const textElement = document.getElementById('notifStatusText');
+      if (textElement) {
+        textElement.textContent = isGranted ? '通知権限: 許可済み' : '通知権限: 未許可';
+      }
+    }
+  }
+
+  // Service Workerからのメッセージを受信
+  setupServiceWorkerListener() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data.type === 'CHECK_SCHEDULES') {
+          // Service Workerからスケジュールチェックの要求を受信
+          this.checkSchedulesForServiceWorker();
+        }
+      });
+    }
+  }
+
+  // Service Worker用のスケジュールチェック
+  checkSchedulesForServiceWorker() {
+    const schedules = this.loadSchedules();
+    const now = new Date();
+
+    schedules.forEach(schedule => {
+      if (!schedule.executed) {
+        const scheduleDate = new Date(schedule.datetime);
+
+        if (now >= scheduleDate) {
+          // Service Workerに通知を依頼
+          this.sendNotificationToServiceWorker(schedule);
+
+          // スケジュールを削除
+          this.deleteSchedule(schedule.id);
+        }
+      }
+    });
+  }
+
+  // Service Workerに通知を送信
+  async sendNotificationToServiceWorker(schedule) {
+    if (this.serviceWorkerRegistration) {
+      try {
+        // Service Workerを通じて通知を表示
+        await this.serviceWorkerRegistration.active.postMessage({
+          type: 'SHOW_NOTIFICATION',
+          title: 'スケジュール通知',
+          body: schedule.message,
+          data: schedule
+        });
+      } catch (error) {
+        console.error('Service Workerへの通知送信エラー:', error);
+        // フォールバック: 直接通知を表示
+        this.showBrowserNotification(schedule);
+      }
+    } else {
+      // Service Workerが利用できない場合は直接通知
+      this.showBrowserNotification(schedule);
+    }
+  }
+
+  // ブラウザ通知を直接表示
+  async showBrowserNotification(schedule) {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        const notification = new Notification('スケジュール通知', {
+          body: schedule.message,
+          requireInteraction: true,
+          vibrate: [200, 100, 200]
+        });
+
+        notification.onclick = () => {
+          window.focus();
+          this.showNotification(schedule);
+          notification.close();
+        };
+      } catch (error) {
+        console.error('ブラウザ通知エラー:', error);
+        // 最終フォールバック: ページ遷移
+        this.showNotification(schedule);
+      }
+    } else {
+      // 通知権限がない場合はページ遷移
+      this.showNotification(schedule);
+    }
   }
 
   // localStorageからスケジュールを読み込む
